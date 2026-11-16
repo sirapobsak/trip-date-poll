@@ -102,6 +102,13 @@
     display: flex; align-items: center; justify-content: center;
     padding: 0;
     user-select: none;
+    -webkit-user-select: none;
+    touch-action: manipulation;          /* กันแตะ 2 ครั้งแล้วจอซูม (iPhone/iPad) */
+    -webkit-tap-highlight-color: transparent;
+  }
+  @media (hover: none) {
+    .day:hover:not(:disabled) { border-color: var(--line); }
+    .day.selected:hover { border-color: var(--accent); }
   }
   .day:hover:not(:disabled) { border-color: var(--accent); }
   .day:disabled { color: #c3c0b8; background: transparent; cursor: not-allowed; }
@@ -123,6 +130,13 @@
   }
   .status.add { background: var(--accent-soft); }
   .status.remove { background: var(--danger-soft); color: var(--danger); }
+  .status.done { background: #eef7f3; }
+  /* ระหว่างรอแตะวันสุดท้าย ให้แถบสถานะลอยติดขอบล่างจอ (มือถือเห็นตลอด) */
+  .status.add, .status.remove {
+    position: sticky; bottom: 12px; z-index: 5;
+    box-shadow: 0 6px 20px rgba(0,0,0,.12);
+  }
+  .linkbtn { min-height: 32px; }
   .linkbtn { border: 0; background: transparent; color: inherit; font: inherit; text-decoration: underline; cursor: pointer; padding: 0; }
 
   .chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
@@ -244,6 +258,8 @@ const [maxY, maxM] = RANGE_END.split("-").map(Number);
 let view = { y: minY, m: minM - 1 };
 let selected = new Set();
 let anchor = null;           // {date, mode: "add" | "remove"} ระหว่างรอคลิกวันสุดท้าย
+let lastAction = "";         // ข้อความสรุปช่วงล่าสุดที่เพิ่ง เพิ่ม/เอาออก
+const TOUCH = window.matchMedia("(hover: none)").matches || navigator.maxTouchPoints > 0; // มือถือ / iPad
 let hoverDate = null;
 let responses = [];          // [{name, dates:[iso]}]
 let allNames = [];           // รายชื่อทั้งหมดจากชีต
@@ -337,7 +353,7 @@ function linkName(n) {
   // โหลดวันที่ที่เคยส่งไว้ (ถ้ามี) มาให้แก้
   const prev = responses.find((r) => r.name === n);
   selected = new Set(prev ? prev.dates.filter((d) => d >= minIso) : []);
-  anchor = null;
+  anchor = null; lastAction = "";
   $("linkedNote").textContent = prev
     ? `✓ เชื่อมกับชื่อในชีตแล้ว — โหลดวันที่ที่คุณเคยส่งไว้ ${selected.size} วัน แก้ไขแล้วกดส่งใหม่ได้เลย`
     : `✓ เชื่อมกับชื่อในชีตแล้ว สวัสดี ${nick(n)}!`;
@@ -467,9 +483,17 @@ function paintPreview() {
 
 function renderStatus() {
   const el = $("status");
+  const tap = TOUCH ? "แตะ" : "คลิก";
   if (!anchor) {
+    if (lastAction) {
+      el.className = "status done";
+      el.innerHTML = `<span>${lastAction} · ${tap}วันแรกของช่วงถัดไปได้เลย</span>`;
+      return;
+    }
     el.className = "status";
-    el.innerHTML = `<span>👆 คลิกวันแรก → เลื่อนเมาส์ → คลิกวันสุดท้าย เพื่อเลือกเป็นช่วง · คลิกวันสีเขียวเพื่อเริ่ม <b>ยกเลิก</b> ช่วงนั้น</span>`;
+    el.innerHTML = TOUCH
+      ? `<span>👆 แตะวันแรก แล้วแตะวันสุดท้าย = ว่างทั้งช่วง · ทำซ้ำได้หลายช่วง · แตะวันสีเขียวก่อน = เริ่ม <b>ยกเลิก</b> ช่วงนั้น</span>`
+      : `<span>👆 คลิกวันแรก → เลื่อนเมาส์ → คลิกวันสุดท้าย = ว่างทั้งช่วง · ทำซ้ำได้หลายช่วง · คลิกวันสีเขียวก่อน = เริ่ม <b>ยกเลิก</b> ช่วงนั้น</span>`;
     return;
   }
   let count = 0;
@@ -479,8 +503,8 @@ function renderStatus() {
     : fmtThai(anchor.date, false);
   el.className = "status " + anchor.mode;
   el.innerHTML = anchor.mode === "add"
-    ? `<span>✅ กำลังเลือกว่าง: <b>${range}</b> — คลิกวันสุดท้าย (คลิกวันเดิมซ้ำ = เลือกวันเดียว)</span><button type="button" class="linkbtn" id="cancelRange">ยกเลิก</button>`
-    : `<span>❌ กำลังเปลี่ยนเป็นไม่ว่าง: <b>${range}</b> — คลิกวันสุดท้าย</span><button type="button" class="linkbtn" id="cancelRange">ยกเลิก</button>`;
+    ? `<span>✅ เริ่มที่ <b>${range}</b> — ${tap}วันสุดท้ายของช่วง (${tap}วันเดิมซ้ำ = วันเดียว)</span><button type="button" class="linkbtn" id="cancelRange">ยกเลิก</button>`
+    : `<span>❌ เปลี่ยนเป็นไม่ว่าง เริ่มที่ <b>${range}</b> — ${tap}วันสุดท้าย</span><button type="button" class="linkbtn" id="cancelRange">ยกเลิก</button>`;
   $("cancelRange").onclick = cancelRange;
 }
 
@@ -498,7 +522,11 @@ $("days").addEventListener("click", (e) => {
     return;
   }
   // คลิกที่สอง: ใช้ทั้งช่วง
-  eachDay(anchor.date, d, (x) => anchor.mode === "add" ? selected.add(x) : selected.delete(x));
+  let n = 0;
+  eachDay(anchor.date, d, (x) => { n++; anchor.mode === "add" ? selected.add(x) : selected.delete(x); });
+  const [a, b] = anchor.date <= d ? [anchor.date, d] : [d, anchor.date];
+  const label = a === b ? fmtThai(a, false) : `${fmtThai(a, false)} – ${fmtThai(b, false)}`;
+  lastAction = anchor.mode === "add" ? `✅ เพิ่ม <b>${label}</b> (${n} วัน) แล้ว` : `❌ เอา <b>${label}</b> ออกแล้ว`;
   anchor = null; hoverDate = null;
   setMsg("");
   renderCalendar();
@@ -514,7 +542,7 @@ document.addEventListener("keydown", (e) => { if (e.key === "Escape" && anchor) 
 
 $("prev").onclick = () => { view.m--; if (view.m < 0) { view.m = 11; view.y--; } renderCalendar(); };
 $("next").onclick = () => { view.m++; if (view.m > 11) { view.m = 0; view.y++; } renderCalendar(); };
-$("clear").onclick = () => { selected.clear(); anchor = null; hoverDate = null; renderCalendar(); };
+$("clear").onclick = () => { selected.clear(); anchor = null; hoverDate = null; lastAction = ""; renderCalendar(); };
 
 /* =================== 3) สรุปวันที่เลือกเป็นช่วงๆ (กด ✕ เพื่อเอาออก) =================== */
 function selectedRanges() {
