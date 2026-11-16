@@ -286,13 +286,25 @@ function doPost(e) {
   try {
     const ctx = ensureSetup_();
     const data = JSON.parse(e.postData.contents);
-    const name = String(data.name || '').trim();
+    const name = String(data.name || '').replace(/\s+/g, ' ').trim().slice(0, 60);
+    if (!name) return json_({ ok: false, error: 'ไม่มีชื่อ' });
     const wanted = {};
     (data.dates || []).forEach(function (d) { if (/^\d{4}-\d{2}-\d{2}$/.test(d)) wanted[d] = true; });
 
     const lock = LockService.getScriptLock();
     lock.waitLock(10000);
     try {
+      // ชื่อใหม่ที่พิมพ์เอง → เพิ่มแถวท้ายรายชื่อในทุกแท็บเดือน
+      if (data.addNew && names_(ctx.ss.getSheetByName(ctx.months[0].tab)).indexOf(name) < 0) {
+        const safe = /^[=+\-@]/.test(name) ? "'" + name : name;
+        ctx.months.forEach(function (mo) {
+          const sh = ctx.ss.getSheetByName(mo.tab);
+          const last = FIRST_NAME_ROW + nameCount_(sh) - 1;
+          sh.insertRowAfter(last);
+          sh.getRange(last + 1, 1).setValue(safe);
+          styleMonth_(sh, mo);
+        });
+      }
       let found = false, saved = 0;
       ctx.months.forEach(function (mo) {
         const sh = ctx.ss.getSheetByName(mo.tab);

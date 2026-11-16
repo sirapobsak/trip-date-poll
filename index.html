@@ -178,7 +178,7 @@
   <form id="form" class="card" autocomplete="off">
     <h2>1. ชื่อของคุณ</h2>
     <div class="field">
-      <label for="name">พิมพ์ชื่อจริงหรือชื่อเล่น แล้วกดเลือกชื่อของคุณ</label>
+      <label for="name">พิมพ์ชื่อของคุณ หรือกดเลือกจากรายชื่อ</label>
       <div class="combo">
         <input id="name" type="text" placeholder="เช่น ปอ หรือ สิรภพ" role="combobox"
                aria-autocomplete="list" aria-controls="suggest" aria-expanded="false">
@@ -332,6 +332,7 @@ function linkName(n) {
   $("name").classList.add("linked");
   $("clearName").hidden = false;
   $("linkedNote").hidden = false;
+  $("linkedNote").style.color = "";
   hideSuggest();
   // โหลดวันที่ที่เคยส่งไว้ (ถ้ามี) มาให้แก้
   const prev = responses.find((r) => r.name === n);
@@ -350,10 +351,36 @@ function unlinkName() {
   $("linkedNote").hidden = true;
 }
 
+// แปลงชื่อที่พิมพ์ → ชื่อในชีต (ถ้าตรงคนเดียว)
+function resolveTyped(text) {
+  const nq = norm(text);
+  if (!nq) return "";
+  const exact = allNames.filter((n) => norm(nick(n)) === nq || norm(n) === nq || norm(n.replace(/\s*\([^)]*\)\s*$/, "")) === nq);
+  if (exact.length === 1) return exact[0];
+  const m = findMatches(text);
+  return m.length === 1 ? m[0] : "";
+}
+
+function renderTypedNote() {
+  const t = $("name").value.trim();
+  const note = $("linkedNote");
+  if (linkedName || !t || !allNames.length) { if (!linkedName) note.hidden = true; return; }
+  const r = resolveTyped(t);
+  const many = findMatches(t).length;
+  note.hidden = false;
+  note.style.color = r ? "" : "var(--muted)";
+  note.textContent = r
+    ? `↳ ตรงกับ “${r.replace(/[​-‍﻿]/g, "")}” — กดส่งได้เลย หรือกดเลือกจากรายการ`
+    : many > 1
+      ? `↳ ตรงกับ ${many} คน — พิมพ์เพิ่มอีกนิด หรือกดเลือกจากรายการ`
+      : `↳ ไม่มีชื่อนี้ในรายชื่อ — ถ้ากดส่ง จะถามก่อนว่าจะเพิ่มเป็นชื่อใหม่ไหม`;
+}
+
 $("name").addEventListener("input", () => {
   if (linkedName) unlinkName();
   activeIdx = 0;
   renderSuggest();
+  renderTypedNote();
 });
 $("name").addEventListener("focus", () => { if (!linkedName) { activeIdx = -1; renderSuggest(); } });
 $("name").addEventListener("keydown", (e) => {
@@ -376,11 +403,10 @@ $("suggest").addEventListener("mousedown", (e) => {
 });
 $("name").addEventListener("blur", () => {
   setTimeout(hideSuggest, 100);
-  // พิมพ์ตรงกับชื่อเล่น/ชื่อเต็มพอดีคนเดียว → เชื่อมให้อัตโนมัติ
+  // พิมพ์แล้วตรงกับชื่อในรายชื่อคนเดียว → เชื่อมให้อัตโนมัติ
   if (!linkedName) {
-    const nq = norm($("name").value);
-    const exact = allNames.filter((n) => norm(nick(n)) === nq || norm(n) === nq);
-    if (nq && exact.length === 1) linkName(exact[0]);
+    const r = resolveTyped($("name").value);
+    if (r) linkName(r);
   }
 });
 $("clearName").onclick = () => {
@@ -534,35 +560,55 @@ async function api(method, payload) {
 }
 
 let demoMemory = [];
+const demoNames = DEMO_NAMES.slice();
 function demoApi(method, payload) {
   let store = demoMemory;
   try { store = JSON.parse(localStorage.getItem("trip-demo") || "[]"); } catch {}
   if (method === "POST") {
+    if (payload.addNew && !demoNames.includes(payload.name)) demoNames.push(payload.name);
     store = store.filter((r) => r.name !== payload.name);
     store.push(payload);
     demoMemory = store;
     try { localStorage.setItem("trip-demo", JSON.stringify(store)); } catch {}
   }
-  return Promise.resolve({ ok: true, names: DEMO_NAMES, responses: store });
+  return Promise.resolve({ ok: true, names: demoNames, responses: store });
 }
 
 $("form").addEventListener("submit", async (e) => {
   e.preventDefault();
+  let addNew = false;
   if (!linkedName) {
-    setMsg("กรุณาพิมพ์แล้วกดเลือกชื่อของคุณจากรายการก่อน", "err");
-    $("name").focus();
-    return;
+    const typed = $("name").value.replace(/\s+/g, " ").trim();
+    if (!typed) { setMsg("กรุณาพิมพ์ชื่อ หรือเลือกจากรายชื่อ", "err"); $("name").focus(); return; }
+    const r = resolveTyped(typed);
+    if (r) {
+      // พิมพ์ตรงกับคนเดียว → ใช้ชื่อนั้น (เก็บวันที่ที่เลือกไว้ไม่ให้หาย)
+      const keep = new Set(selected);
+      linkName(r);
+      selected = keep; renderCalendar();
+    } else if (findMatches(typed).length > 1) {
+      setMsg("มีหลายชื่อที่ตรงกับที่พิมพ์ กรุณากดเลือกชื่อของคุณจากรายการ", "err");
+      $("name").focus(); renderSuggest();
+      return;
+    } else {
+      if (!confirm(`ไม่พบ “${typed}” ในรายชื่อ\nจะเพิ่ม “${typed}” เป็นชื่อใหม่ในตารางไหม?`)) return;
+      if (typed.length > 60) { setMsg("ชื่อยาวเกินไป (ไม่เกิน 60 ตัวอักษร)", "err"); return; }
+      linkedName = typed;
+      addNew = true;
+    }
   }
   if (anchor) cancelRange();
-  const payload = { name: linkedName, dates: [...selected].sort() };
+  const payload = { name: linkedName, dates: [...selected].sort(), addNew };
   if (!payload.dates.length && !confirm("ยังไม่ได้เลือกวันว่างเลย จะบันทึกว่า \"ไม่ว่างทุกวัน\" ใช่ไหม?")) return;
   $("submit").disabled = true;
   setMsg("กำลังส่ง…");
   try {
     await api("POST", payload);
-    setMsg(`บันทึกแล้ว ✓ ว่าง ${payload.dates.length} วัน ขอบคุณ ${nick(linkedName)}!`, "ok");
     await loadSummary();
+    if (addNew) { const keep = new Set(selected); linkName(payload.name); selected = keep; renderCalendar(); }
+    setMsg(`บันทึกแล้ว ✓ ว่าง ${payload.dates.length} วัน ขอบคุณ ${nick(payload.name)}!`, "ok");
   } catch (err) {
+    if (addNew) linkedName = "";
     setMsg("ส่งไม่สำเร็จ ลองใหม่อีกครั้ง (" + err.message + ")", "err");
   } finally {
     $("submit").disabled = false;
