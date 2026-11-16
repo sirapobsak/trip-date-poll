@@ -40,7 +40,7 @@
   }
   .card h2 { margin: 0 0 12px; font-size: 1.1rem; }
   label { display: block; font-weight: 500; margin: 0 0 6px; }
-  input[type=text], textarea {
+  input[type=text], textarea, select {
     width: 100%;
     font: inherit;
     padding: 10px 12px;
@@ -50,7 +50,7 @@
     color: var(--ink);
   }
   textarea { resize: vertical; min-height: 64px; }
-  input:focus, textarea:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+  input:focus, textarea:focus, select:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
   .field { margin-bottom: 16px; }
 
   .cal-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
@@ -134,9 +134,11 @@
   <form id="form" class="card" autocomplete="off">
     <h2>1. ข้อมูลของคุณ</h2>
     <div class="field">
-      <label for="name">ชื่อเล่น</label>
-      <input id="name" type="text" maxlength="50" placeholder="เช่น ต้น" required>
-      <p class="hint">ถ้าเคยส่งแล้ว ใส่ชื่อเดิมแล้วส่งใหม่ = แก้ไขวันที่เดิม</p>
+      <label for="name">เลือกชื่อของคุณ</label>
+      <select id="name" required>
+        <option value="">กำลังโหลดรายชื่อ…</option>
+      </select>
+      <p class="hint">ถ้าเคยส่งแล้ว เลือกชื่อเดิม วันที่เดิมจะขึ้นมาให้แก้ แล้วกดส่งใหม่ได้เลย</p>
     </div>
 
     <h2>2. เลือกวันที่ว่าง</h2>
@@ -150,12 +152,7 @@
     <p class="hint">ตัวเลขเล็กมุมขวาบน = จำนวนเพื่อนที่ว่างวันนั้นแล้ว</p>
     <div class="chips" id="chips"></div>
 
-    <div class="field" style="margin-top:16px">
-      <label for="note">หมายเหตุ (ไม่บังคับ)</label>
-      <textarea id="note" maxlength="200" placeholder="เช่น ว่างเฉพาะช่วงบ่าย, อยากไปทะเล"></textarea>
-    </div>
-
-    <div class="actions">
+    <div class="actions" style="margin-top:16px">
       <button class="btn" id="submit" type="submit">ส่งวันที่ว่าง</button>
       <button class="btn ghost" id="clear" type="button">ล้างวันที่เลือก</button>
       <span class="msg" id="msg" role="status"></span>
@@ -182,6 +179,10 @@ const TH_MONTHS_SHORT = ["ม.ค.","ก.พ.","มี.ค.","เม.ย.","พ.
 const TH_DOW = ["อา","จ","อ","พ","พฤ","ศ","ส"];
 const TH_DOW_FULL = ["อาทิตย์","จันทร์","อังคาร","พุธ","พฤหัสฯ","ศุกร์","เสาร์"];
 const DEMO = !SCRIPT_URL;
+// ช่วงวันที่ให้เลือก (ต้องตรงกับ START/END ใน Code.gs)
+const RANGE_START = "2026-12-01";
+const RANGE_END = "2027-05-31";
+const DEMO_NAMES = ["นายตัวอย่าง หนึ่ง (เอ)", "นางสาวตัวอย่าง สอง (บี)", "นายตัวอย่าง สาม (ซี)"];
 
 const $ = (id) => document.getElementById(id);
 const pad = (n) => String(n).padStart(2, "0");
@@ -189,9 +190,14 @@ const iso = (y, m, d) => `${y}-${pad(m + 1)}-${pad(d)}`;
 const today = new Date(); today.setHours(0, 0, 0, 0);
 const todayIso = iso(today.getFullYear(), today.getMonth(), today.getDate());
 
-let view = { y: today.getFullYear(), m: today.getMonth() };
+const minIso = todayIso > RANGE_START ? todayIso : RANGE_START;
+const [minY, minM] = minIso.split("-").map(Number);
+const [maxY, maxM] = RANGE_END.split("-").map(Number);
+let view = { y: minY, m: minM - 1 };
+const nick = (n) => (n.match(/\(([^)]+)\)\s*$/) || [, n])[1].trim();
 let selected = new Set();
-let responses = [];          // [{name, dates:[iso], note}]
+let responses = [];          // [{name, dates:[iso]}]
+let allNames = [];           // รายชื่อทั้งหมดจากชีต
 let countByDate = new Map(); // iso -> [names]
 
 function fmtThai(isoStr) {
@@ -214,21 +220,22 @@ function renderCalendar() {
   for (let i = 0; i < first; i++) cells.push(`<button type="button" class="day empty" tabindex="-1"></button>`);
   for (let d = 1; d <= days; d++) {
     const key = iso(y, m, d);
-    const past = key < todayIso;
+    const past = key < minIso || key > RANGE_END;
     const names = countByDate.get(key) || [];
     const cls = ["day", selected.has(key) && "selected", key === todayIso && "today"].filter(Boolean).join(" ");
     const tint = !selected.has(key) && names.length && maxCount()
       ? `style="background: rgba(var(--heat), ${0.08 + 0.32 * names.length / maxCount()})"` : "";
     cells.push(
       `<button type="button" class="${cls}" data-date="${key}" ${past ? "disabled" : ""} ${tint}
-        aria-pressed="${selected.has(key)}" title="${names.length ? "ว่าง: " + escapeHtml(names.join(", ")) : ""}">
+        aria-pressed="${selected.has(key)}" title="${names.length ? "ว่าง: " + escapeHtml(names.map(nick).join(", ")) : ""}">
         ${d}${names.length ? `<span class="badge">${names.length}</span>` : ""}
       </button>`
     );
   }
   $("days").innerHTML = cells.join("");
-  // ห้ามย้อนไปเดือนก่อนเดือนปัจจุบัน
-  $("prev").disabled = y < today.getFullYear() || (y === today.getFullYear() && m <= today.getMonth());
+  // เลื่อนเดือนได้เฉพาะในช่วงที่กำหนด
+  $("prev").disabled = y * 12 + m <= minY * 12 + (minM - 1);
+  $("next").disabled = y * 12 + m >= maxY * 12 + (maxM - 1);
   renderChips();
 }
 
@@ -253,17 +260,25 @@ $("prev").onclick = () => { view.m--; if (view.m < 0) { view.m = 11; view.y--; }
 $("next").onclick = () => { view.m++; if (view.m > 11) { view.m = 0; view.y++; } renderCalendar(); };
 $("clear").onclick = () => { selected.clear(); renderCalendar(); };
 
-// ถ้าพิมพ์ชื่อที่เคยส่งแล้ว ให้โหลดวันที่เดิมมาให้แก้
+// เลือกชื่อแล้ว ถ้าเคยส่งไว้ ให้โหลดวันที่เดิมมาให้แก้
 $("name").addEventListener("change", () => {
-  const name = $("name").value.trim().toLowerCase();
-  const prev = responses.find((r) => r.name.trim().toLowerCase() === name);
-  if (prev && selected.size === 0) {
-    prev.dates.forEach((d) => { if (d >= todayIso) selected.add(d); });
-    $("note").value = prev.note || "";
+  const prev = responses.find((r) => r.name === $("name").value);
+  selected.clear();
+  if (prev) {
+    prev.dates.forEach((d) => { if (d >= minIso) selected.add(d); });
     setMsg("โหลดวันที่ที่คุณเคยส่งไว้แล้ว แก้ไขแล้วกดส่งได้เลย", "ok");
-    renderCalendar();
+  } else {
+    setMsg("");
   }
+  renderCalendar();
 });
+
+function fillNames(names) {
+  const cur = $("name").value;
+  $("name").innerHTML = `<option value="">— เลือกชื่อ —</option>` +
+    names.map((n) => `<option value="${escapeHtml(n)}">${escapeHtml(n)}</option>`).join("");
+  if (names.includes(cur)) $("name").value = cur;
+}
 
 // ---------- ส่งข้อมูล / โหลดข้อมูล ----------
 async function api(method, payload) {
@@ -282,25 +297,25 @@ function demoApi(method, payload) {
   let store = demoMemory;
   try { store = JSON.parse(localStorage.getItem("trip-demo") || "[]"); } catch {}
   if (method === "POST") {
-    store = store.filter((r) => r.name.toLowerCase() !== payload.name.toLowerCase());
+    store = store.filter((r) => r.name !== payload.name);
     store.push(payload);
     demoMemory = store;
     try { localStorage.setItem("trip-demo", JSON.stringify(store)); } catch {}
   }
-  return Promise.resolve({ ok: true, responses: store });
+  return Promise.resolve({ ok: true, names: DEMO_NAMES, responses: store });
 }
 
 $("form").addEventListener("submit", async (e) => {
   e.preventDefault();
-  const name = $("name").value.trim();
-  if (!name) return setMsg("กรุณาใส่ชื่อ", "err");
+  const name = $("name").value;
+  if (!name) return setMsg("กรุณาเลือกชื่อ", "err");
   if (!selected.size) return setMsg("กรุณาเลือกวันที่ว่างอย่างน้อย 1 วัน", "err");
-  const payload = { name, dates: [...selected].sort(), note: $("note").value.trim() };
+  const payload = { name, dates: [...selected].sort() };
   $("submit").disabled = true;
   setMsg("กำลังส่ง…");
   try {
     await api("POST", payload);
-    setMsg(`บันทึกแล้ว ✓ (${payload.dates.length} วัน) ขอบคุณ ${name}!`, "ok");
+    setMsg(`บันทึกแล้ว ✓ (${payload.dates.length} วัน) ขอบคุณ ${nick(name)}!`, "ok");
     selected.clear();
     await loadSummary();
   } catch (err) {
@@ -315,6 +330,8 @@ async function loadSummary() {
   try {
     const data = await api("GET");
     responses = data.responses || [];
+    allNames = data.names || [];
+    fillNames(allNames);
   } catch (err) {
     $("summaryMeta").textContent = "โหลดข้อมูลไม่สำเร็จ: " + err.message;
     return;
@@ -322,7 +339,7 @@ async function loadSummary() {
   countByDate = new Map();
   for (const r of responses) {
     for (const d of r.dates) {
-      if (d < todayIso) continue;
+      if (d < minIso) continue;
       if (!countByDate.has(d)) countByDate.set(d, []);
       countByDate.get(d).push(r.name);
     }
@@ -334,14 +351,18 @@ async function loadSummary() {
 
 function renderSummary() {
   const total = responses.length;
-  $("summaryMeta").textContent = total ? `ส่งแล้ว ${total} คน: ${responses.map((r) => r.name).join(", ")}` : "ยังไม่มีใครส่ง เป็นคนแรกเลย!";
+  const done = new Set(responses.map((r) => r.name));
+  const waiting = allNames.filter((n) => !done.has(n)).map(nick);
+  $("summaryMeta").textContent = total
+    ? `ส่งแล้ว ${total}/${allNames.length || total} คน` + (waiting.length ? ` · ยังไม่ส่ง: ${waiting.join(", ")}` : " · ครบทุกคนแล้ว 🎉")
+    : "ยังไม่มีใครส่ง เป็นคนแรกเลย!";
   const ranked = [...countByDate.entries()]
     .sort((a, b) => b[1].length - a[1].length || a[0].localeCompare(b[0]))
     .slice(0, 10);
   $("rank").innerHTML = ranked.map(([d, names]) => `
     <li>
       <div class="row"><span class="date">${fmtThai(d)}</span><span class="count">${names.length}/${total} คน</span></div>
-      <div class="names">${escapeHtml(names.join(", "))}</div>
+      <div class="names">${escapeHtml(names.map(nick).join(", "))}</div>
       <div class="bar"><span style="width:${(names.length / total) * 100}%"></span></div>
     </li>`).join("");
 }
