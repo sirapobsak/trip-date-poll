@@ -410,15 +410,18 @@ $("name").addEventListener("keydown", (e) => {
     }
   } else if (e.key === "Escape") hideSuggest();
 });
-// ใช้ mousedown เพื่อเลือกก่อนช่องชื่อเสียโฟกัส
+// mousedown: กันช่องชื่อเสียโฟกัส (คอม) · click: เลือกชื่อ (ใช้ได้ทั้งคอม มือถือ iPad)
 $("suggest").addEventListener("mousedown", (e) => {
+  if (e.target.closest("li[data-i]")) e.preventDefault();
+});
+$("suggest").addEventListener("click", (e) => {
   const li = e.target.closest("li[data-i]");
   if (!li) return;
-  e.preventDefault();
   linkName(matches[+li.dataset.i]);
+  $("name").blur();
 });
 $("name").addEventListener("blur", () => {
-  setTimeout(hideSuggest, 100);
+  setTimeout(hideSuggest, 300); // รอให้แตะรายชื่อบนมือถือทำงานก่อนค่อยปิดรายการ
   // พิมพ์แล้วตรงกับชื่อในรายชื่อคนเดียว → เชื่อมให้อัตโนมัติ
   if (!linkedName) {
     const r = resolveTyped($("name").value);
@@ -576,15 +579,51 @@ $("chips").addEventListener("click", (e) => {
 });
 
 /* =================== 4) ส่งข้อมูล / โหลดข้อมูล =================== */
+class AppError extends Error {}
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
 async function api(method, payload) {
   if (DEMO) return demoApi(method, payload);
-  const opts = method === "POST"
-    ? { method: "POST", headers: { "Content-Type": "text/plain;charset=utf-8" }, body: JSON.stringify(payload) }
-    : { method: "GET" };
-  const res = await fetch(SCRIPT_URL, opts);
+  if (method === "POST") return postSave(payload);
+  const res = await fetch(SCRIPT_URL + "?t=" + Date.now(), { method: "GET", cache: "no-store" });
   const data = await res.json();
-  if (!data.ok) throw new Error(data.error || "unknown error");
+  if (!data.ok) throw new AppError(data.error || "unknown error");
   return data;
+}
+
+async function postSave(payload) {
+  const body = JSON.stringify(payload);
+  try {
+    const res = await fetch(SCRIPT_URL, {
+      method: "POST", headers: { "Content-Type": "text/plain;charset=utf-8" }, body,
+    });
+    const data = await res.json();
+    if (!data.ok) throw new AppError(data.error || "unknown error");
+    return data;
+  } catch (err) {
+    if (err instanceof AppError) throw err; // ระบบหลังบ้านตอบว่าผิด → แจ้งเลย
+    // Safari บน iPhone/iPad บางเครื่องอ่านคำตอบจาก Google ไม่ได้ (Load failed)
+    // → ส่งซ้ำแบบไม่รออ่านคำตอบ แล้วเช็กจากชีตว่าบันทึกเข้าแล้วจริง
+    console.warn("POST ปกติไม่สำเร็จ ลองวิธีสำรอง:", err);
+    await fetch(SCRIPT_URL, {
+      method: "POST", mode: "no-cors", headers: { "Content-Type": "text/plain;charset=utf-8" }, body,
+    });
+    return verifySaved(payload);
+  }
+}
+
+async function verifySaved(payload) {
+  const want = payload.dates.filter((d) => d >= minIso).sort().join(",");
+  for (let i = 0; i < 4; i++) {
+    await sleep(1200 + i * 800);
+    try {
+      const data = await api("GET");
+      const r = (data.responses || []).find((x) => x.name === payload.name);
+      const got = r ? r.dates.filter((d) => d >= minIso).sort().join(",") : null;
+      if (r && got === want) return { ok: true, saved: payload.dates.length };
+    } catch (e) { /* ลองใหม่ */ }
+  }
+  throw new Error("เช็กแล้วข้อมูลยังไม่เข้าชีต ลองกดส่งอีกครั้ง");
 }
 
 let demoMemory = [];
@@ -685,7 +724,10 @@ function renderSummary() {
     </li>`).join("");
 }
 
-function setMsg(text, kind = "") { $("msg").textContent = text; $("msg").className = "msg " + kind; }
+function setMsg(text, kind = "") {
+  $("msg").textContent = text; $("msg").className = "msg " + kind;
+  if (text) $("msg").scrollIntoView({ block: "nearest", behavior: "smooth" }); // มือถือ: ให้เห็นข้อความเสมอ
+}
 
 $("refresh").onclick = loadSummary;
 $("demoNotice").hidden = !DEMO;
