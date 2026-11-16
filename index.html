@@ -17,6 +17,8 @@
     --accent: #1f8a70;
     --accent-ink: #ffffff;
     --accent-soft: #d8efe7;
+    --danger: #c0392b;
+    --danger-soft: #f8d7d3;
     --warn: #b54708;
     --heat: 31, 138, 112;
   }
@@ -40,7 +42,7 @@
   }
   .card h2 { margin: 0 0 12px; font-size: 1.1rem; }
   label { display: block; font-weight: 500; margin: 0 0 6px; }
-  input[type=text], textarea, select {
+  input[type=text] {
     width: 100%;
     font: inherit;
     padding: 10px 12px;
@@ -49,9 +51,34 @@
     background: #fff;
     color: var(--ink);
   }
-  textarea { resize: vertical; min-height: 64px; }
-  input:focus, textarea:focus, select:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+  input:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
   .field { margin-bottom: 16px; }
+
+  /* ช่องชื่อ + รายการแนะนำ */
+  .combo { position: relative; }
+  .combo input.linked { border-color: var(--accent); background: #f3fbf8; padding-right: 40px; }
+  .combo .clear-name {
+    position: absolute; right: 6px; top: 50%; transform: translateY(-50%);
+    border: 0; background: transparent; font-size: 1.1rem; color: var(--muted);
+    width: 30px; height: 30px; border-radius: 8px; cursor: pointer;
+  }
+  .combo .clear-name:hover { background: var(--bg); }
+  .suggest {
+    position: absolute; left: 0; right: 0; top: calc(100% + 4px); z-index: 10;
+    margin: 0; padding: 4px; list-style: none;
+    background: #fff; border: 1px solid var(--line); border-radius: 10px;
+    box-shadow: 0 8px 24px rgba(0,0,0,.08);
+    max-height: 280px; overflow-y: auto;
+  }
+  .suggest li {
+    padding: 8px 10px; border-radius: 8px; cursor: pointer;
+    display: flex; justify-content: space-between; gap: 8px;
+  }
+  .suggest li.active, .suggest li:hover { background: var(--accent-soft); }
+  .suggest li .nk { color: var(--muted); font-size: .85rem; white-space: nowrap; }
+  .suggest li.none { color: var(--muted); cursor: default; background: transparent; }
+  .suggest mark { background: #fff1a8; color: inherit; border-radius: 3px; }
+  .linked-note { font-size: .85rem; color: var(--accent); margin: 6px 0 0; }
 
   .cal-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
   .cal-head strong { font-size: 1.05rem; }
@@ -59,7 +86,8 @@
     border: 1px solid var(--line); background: #fff; color: var(--ink);
     width: 38px; height: 38px; border-radius: 10px; font-size: 1.1rem; cursor: pointer;
   }
-  .icon-btn:hover { background: var(--bg); }
+  .icon-btn:hover:not(:disabled) { background: var(--bg); }
+  .icon-btn:disabled { opacity: .35; cursor: not-allowed; }
   .grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; }
   .dow { text-align: center; font-size: .8rem; color: var(--muted); padding: 4px 0; }
   .day {
@@ -73,24 +101,41 @@
     cursor: pointer;
     display: flex; align-items: center; justify-content: center;
     padding: 0;
+    user-select: none;
   }
   .day:hover:not(:disabled) { border-color: var(--accent); }
   .day:disabled { color: #c3c0b8; background: transparent; cursor: not-allowed; }
   .day.empty { visibility: hidden; }
   .day.today { font-weight: 700; }
   .day.selected { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+  .day.preview-add { background: #9ed8c6 !important; color: var(--ink); border: 2px dashed var(--accent); }
+  .day.preview-remove { background: var(--danger-soft) !important; color: var(--danger); border: 2px dashed var(--danger); text-decoration: line-through; }
+  .day.anchor { box-shadow: 0 0 0 3px #fff, 0 0 0 5px var(--ink); z-index: 1; }
   .day .badge {
     position: absolute; top: 2px; right: 4px;
     font-size: .65rem; font-weight: 600; color: var(--accent);
   }
   .day.selected .badge { color: var(--accent-ink); }
   .hint { font-size: .85rem; color: var(--muted); margin: 8px 0 0; }
+  .status {
+    font-size: .9rem; margin: 10px 0 0; padding: 8px 12px; border-radius: 10px;
+    background: var(--bg); display: flex; justify-content: space-between; align-items: center; gap: 8px;
+  }
+  .status.add { background: var(--accent-soft); }
+  .status.remove { background: var(--danger-soft); color: var(--danger); }
+  .linkbtn { border: 0; background: transparent; color: inherit; font: inherit; text-decoration: underline; cursor: pointer; padding: 0; }
 
   .chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
   .chip {
+    display: inline-flex; align-items: center; gap: 4px;
     background: var(--accent-soft); color: var(--ink);
-    border-radius: 999px; padding: 2px 10px; font-size: .85rem;
+    border-radius: 999px; padding: 2px 4px 2px 10px; font-size: .85rem;
   }
+  .chip button {
+    border: 0; background: transparent; cursor: pointer; font-size: .95rem; line-height: 1;
+    width: 22px; height: 22px; border-radius: 50%; color: var(--muted);
+  }
+  .chip button:hover { background: var(--danger-soft); color: var(--danger); }
   .actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
   .btn {
     font: inherit; font-weight: 600;
@@ -123,22 +168,24 @@
 <div class="wrap">
   <header>
     <h1>🧳 นัดวันไปเที่ยว</h1>
-    <p>ใส่ชื่อ แล้วจิ้มเลือกวันที่ตัวเองว่างบนปฏิทิน (เลือกได้หลายวัน) แล้วกดส่ง</p>
+    <p>พิมพ์ชื่อตัวเอง แล้วเลือกช่วงวันที่ว่างบนปฏิทิน แล้วกดส่ง</p>
   </header>
 
   <div id="demoNotice" class="notice" hidden>
     ยังไม่ได้ตั้งค่า Google Sheet — ตอนนี้เป็น <b>โหมดทดลอง</b> ข้อมูลจะเก็บไว้แค่ในเบราว์เซอร์นี้
-    (ตั้งค่า <code>SCRIPT_URL</code> ใน index.html ตามไฟล์ README)
   </div>
 
   <form id="form" class="card" autocomplete="off">
-    <h2>1. ข้อมูลของคุณ</h2>
+    <h2>1. ชื่อของคุณ</h2>
     <div class="field">
-      <label for="name">เลือกชื่อของคุณ</label>
-      <select id="name" required>
-        <option value="">กำลังโหลดรายชื่อ…</option>
-      </select>
-      <p class="hint">ถ้าเคยส่งแล้ว เลือกชื่อเดิม วันที่เดิมจะขึ้นมาให้แก้ แล้วกดส่งใหม่ได้เลย</p>
+      <label for="name">พิมพ์ชื่อจริงหรือชื่อเล่น แล้วกดเลือกชื่อของคุณ</label>
+      <div class="combo">
+        <input id="name" type="text" placeholder="เช่น ปอ หรือ สิรภพ" role="combobox"
+               aria-autocomplete="list" aria-controls="suggest" aria-expanded="false">
+        <button type="button" class="clear-name" id="clearName" aria-label="ล้างชื่อ" hidden>✕</button>
+        <ul class="suggest" id="suggest" role="listbox" hidden></ul>
+      </div>
+      <p class="linked-note" id="linkedNote" hidden></p>
     </div>
 
     <h2>2. เลือกวันที่ว่าง</h2>
@@ -149,12 +196,13 @@
     </div>
     <div class="grid" id="dow"></div>
     <div class="grid" id="days"></div>
+    <div class="status" id="status"></div>
     <p class="hint">ตัวเลขเล็กมุมขวาบน = จำนวนเพื่อนที่ว่างวันนั้นแล้ว</p>
     <div class="chips" id="chips"></div>
 
     <div class="actions" style="margin-top:16px">
       <button class="btn" id="submit" type="submit">ส่งวันที่ว่าง</button>
-      <button class="btn ghost" id="clear" type="button">ล้างวันที่เลือก</button>
+      <button class="btn ghost" id="clear" type="button">ล้างวันที่เลือกทั้งหมด</button>
       <span class="msg" id="msg" role="status"></span>
     </div>
   </form>
@@ -170,43 +218,180 @@
 </div>
 
 <script>
-// ===== ตั้งค่า: วาง URL ของ Google Apps Script Web App ตรงนี้ (ดูวิธีใน README.md) =====
+// ===== ตั้งค่า: URL ของ Google Apps Script Web App (ดูวิธีใน README.md) =====
 const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbydSncUpEqcDeeqiCGfisB6Tqv9roVona503FmLMfQ4invo0Z88Gidv4gry5_mVbcEgmA/exec";
-// ======================================================================================
+// ช่วงวันที่ให้เลือก (ต้องตรงกับ START/END ใน Code.gs)
+const RANGE_START = "2026-12-01";
+const RANGE_END = "2027-05-31";
+// ==========================================================================
 
 const TH_MONTHS = ["มกราคม","กุมภาพันธ์","มีนาคม","เมษายน","พฤษภาคม","มิถุนายน","กรกฎาคม","สิงหาคม","กันยายน","ตุลาคม","พฤศจิกายน","ธันวาคม"];
 const TH_MONTHS_SHORT = ["ม.ค.","ก.พ.","มี.ค.","เม.ย.","พ.ค.","มิ.ย.","ก.ค.","ส.ค.","ก.ย.","ต.ค.","พ.ย.","ธ.ค."];
 const TH_DOW = ["อา","จ","อ","พ","พฤ","ศ","ส"];
 const TH_DOW_FULL = ["อาทิตย์","จันทร์","อังคาร","พุธ","พฤหัสฯ","ศุกร์","เสาร์"];
-const DEMO = !SCRIPT_URL;
-// ช่วงวันที่ให้เลือก (ต้องตรงกับ START/END ใน Code.gs)
-const RANGE_START = "2026-12-01";
-const RANGE_END = "2027-05-31";
-const DEMO_NAMES = ["นายตัวอย่าง หนึ่ง (เอ)", "นางสาวตัวอย่าง สอง (บี)", "นายตัวอย่าง สาม (ซี)"];
+const DEMO = !SCRIPT_URL || new URLSearchParams(location.search).has("demo");
+const DEMO_NAMES = ["นายสิรภพ ตัวอย่าง (ปอ)", "นางสาวณภชนก ตัวอย่าง (มายด์)", "นายอภิวิชญ์ ตัวอย่าง (บอส)", "นายปัณณวิชญ์ ตัวอย่าง (บอสปัญ)"];
 
 const $ = (id) => document.getElementById(id);
 const pad = (n) => String(n).padStart(2, "0");
 const iso = (y, m, d) => `${y}-${pad(m + 1)}-${pad(d)}`;
 const today = new Date(); today.setHours(0, 0, 0, 0);
 const todayIso = iso(today.getFullYear(), today.getMonth(), today.getDate());
-
 const minIso = todayIso > RANGE_START ? todayIso : RANGE_START;
 const [minY, minM] = minIso.split("-").map(Number);
 const [maxY, maxM] = RANGE_END.split("-").map(Number);
+
 let view = { y: minY, m: minM - 1 };
-const nick = (n) => (n.match(/\(([^)]+)\)\s*$/) || [, n])[1].trim();
 let selected = new Set();
+let anchor = null;           // {date, mode: "add" | "remove"} ระหว่างรอคลิกวันสุดท้าย
+let hoverDate = null;
 let responses = [];          // [{name, dates:[iso]}]
 let allNames = [];           // รายชื่อทั้งหมดจากชีต
+let linkedName = "";         // ชื่อในชีตที่เลือกแล้ว
 let countByDate = new Map(); // iso -> [names]
+let maxCount = 0;
 
-function fmtThai(isoStr) {
+const nick = (n) => (n.match(/\(([^)]+)\)\s*$/) || [, n])[1].trim();
+const norm = (s) => String(s).replace(/[​-‍﻿]/g, "").toLowerCase().trim();
+const escapeHtml = (s) => String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+
+function fmtThai(isoStr, withDow = true) {
   const [y, m, d] = isoStr.split("-").map(Number);
   const dow = new Date(y, m - 1, d).getDay();
-  return `${TH_DOW_FULL[dow]} ${d} ${TH_MONTHS_SHORT[m - 1]} ${y + 543}`;
+  return `${withDow ? TH_DOW_FULL[dow] + " " : ""}${d} ${TH_MONTHS_SHORT[m - 1]} ${y + 543}`;
+}
+function addDays(isoStr, n) {
+  const [y, m, d] = isoStr.split("-").map(Number);
+  const dt = new Date(y, m - 1, d + n);
+  return iso(dt.getFullYear(), dt.getMonth(), dt.getDate());
+}
+function eachDay(a, b, fn) {
+  const [from, to] = a <= b ? [a, b] : [b, a];
+  for (let d = from; d <= to; d = addDays(d, 1)) {
+    if (d >= minIso && d <= RANGE_END) fn(d);
+  }
 }
 
-// ---------- ปฏิทิน ----------
+/* =================== 1) ช่องชื่อ + รายการแนะนำ =================== */
+let activeIdx = -1;
+let matches = [];
+
+function findMatches(q) {
+  const nq = norm(q);
+  if (!nq) return allNames.slice();
+  return allNames
+    .map((n) => {
+      const nn = norm(n), nk = norm(nick(n));
+      // ให้คะแนน: ชื่อเล่นตรงเป๊ะ > ชื่อเล่นขึ้นต้นด้วย > ชื่อมีคำที่พิมพ์
+      const score = nk === nq ? 0 : nk.startsWith(nq) ? 1 : nn.includes(nq) ? 2 : -1;
+      return { n, score };
+    })
+    .filter((x) => x.score >= 0)
+    .sort((a, b) => a.score - b.score || a.n.localeCompare(b.n, "th"))
+    .map((x) => x.n);
+}
+
+function highlight(text, q) {
+  const nq = norm(q);
+  const clean = String(text).replace(/[​-‍﻿]/g, "");
+  const i = nq ? clean.toLowerCase().indexOf(nq) : -1;
+  if (i < 0) return escapeHtml(clean);
+  return escapeHtml(clean.slice(0, i)) + "<mark>" + escapeHtml(clean.slice(i, i + nq.length)) + "</mark>" + escapeHtml(clean.slice(i + nq.length));
+}
+
+function renderSuggest() {
+  const q = $("name").value;
+  matches = findMatches(q);
+  const ul = $("suggest");
+  if (!allNames.length) {
+    ul.innerHTML = `<li class="none">กำลังโหลดรายชื่อ…</li>`;
+  } else if (!matches.length) {
+    ul.innerHTML = `<li class="none">ไม่พบชื่อ “${escapeHtml(q)}” ในรายชื่อ</li>`;
+  } else {
+    if (activeIdx >= matches.length) activeIdx = matches.length - 1;
+    ul.innerHTML = matches.map((n, i) => {
+      const full = n.replace(/\s*\([^)]*\)\s*$/, "");
+      return `<li role="option" data-i="${i}" class="${i === activeIdx ? "active" : ""}" aria-selected="${i === activeIdx}">
+        <span>${highlight(full, q)}</span><span class="nk">${highlight(nick(n), q)}</span></li>`;
+    }).join("");
+  }
+  ul.hidden = false;
+  $("name").setAttribute("aria-expanded", "true");
+  const act = ul.querySelector("li.active");
+  if (act) act.scrollIntoView({ block: "nearest" });
+}
+function hideSuggest() {
+  $("suggest").hidden = true;
+  $("name").setAttribute("aria-expanded", "false");
+  activeIdx = -1;
+}
+
+function linkName(n) {
+  linkedName = n;
+  $("name").value = n.replace(/[​-‍﻿]/g, "");
+  $("name").classList.add("linked");
+  $("clearName").hidden = false;
+  $("linkedNote").hidden = false;
+  hideSuggest();
+  // โหลดวันที่ที่เคยส่งไว้ (ถ้ามี) มาให้แก้
+  const prev = responses.find((r) => r.name === n);
+  selected = new Set(prev ? prev.dates.filter((d) => d >= minIso) : []);
+  anchor = null;
+  $("linkedNote").textContent = prev
+    ? `✓ เชื่อมกับชื่อในชีตแล้ว — โหลดวันที่ที่คุณเคยส่งไว้ ${selected.size} วัน แก้ไขแล้วกดส่งใหม่ได้เลย`
+    : `✓ เชื่อมกับชื่อในชีตแล้ว สวัสดี ${nick(n)}!`;
+  setMsg("");
+  renderCalendar();
+}
+function unlinkName() {
+  linkedName = "";
+  $("name").classList.remove("linked");
+  $("clearName").hidden = true;
+  $("linkedNote").hidden = true;
+}
+
+$("name").addEventListener("input", () => {
+  if (linkedName) unlinkName();
+  activeIdx = 0;
+  renderSuggest();
+});
+$("name").addEventListener("focus", () => { if (!linkedName) { activeIdx = -1; renderSuggest(); } });
+$("name").addEventListener("keydown", (e) => {
+  if ($("suggest").hidden && (e.key === "ArrowDown" || e.key === "ArrowUp")) { renderSuggest(); }
+  if (e.key === "ArrowDown") { e.preventDefault(); activeIdx = Math.min(activeIdx + 1, matches.length - 1); renderSuggest(); }
+  else if (e.key === "ArrowUp") { e.preventDefault(); activeIdx = Math.max(activeIdx - 1, 0); renderSuggest(); }
+  else if (e.key === "Enter") {
+    if (!$("suggest").hidden && matches.length) {
+      e.preventDefault();
+      linkName(matches[Math.max(activeIdx, 0)]);
+    }
+  } else if (e.key === "Escape") hideSuggest();
+});
+// ใช้ mousedown เพื่อเลือกก่อนช่องชื่อเสียโฟกัส
+$("suggest").addEventListener("mousedown", (e) => {
+  const li = e.target.closest("li[data-i]");
+  if (!li) return;
+  e.preventDefault();
+  linkName(matches[+li.dataset.i]);
+});
+$("name").addEventListener("blur", () => {
+  setTimeout(hideSuggest, 100);
+  // พิมพ์ตรงกับชื่อเล่น/ชื่อเต็มพอดีคนเดียว → เชื่อมให้อัตโนมัติ
+  if (!linkedName) {
+    const nq = norm($("name").value);
+    const exact = allNames.filter((n) => norm(nick(n)) === nq || norm(n) === nq);
+    if (nq && exact.length === 1) linkName(exact[0]);
+  }
+});
+$("clearName").onclick = () => {
+  unlinkName();
+  $("name").value = "";
+  selected.clear(); anchor = null;
+  renderCalendar();
+  $("name").focus();
+};
+
+/* =================== 2) ปฏิทิน + เลือกเป็นช่วง =================== */
 function renderDow() {
   $("dow").innerHTML = TH_DOW.map((d) => `<div class="dow">${d}</div>`).join("");
 }
@@ -220,67 +405,123 @@ function renderCalendar() {
   for (let i = 0; i < first; i++) cells.push(`<button type="button" class="day empty" tabindex="-1"></button>`);
   for (let d = 1; d <= days; d++) {
     const key = iso(y, m, d);
-    const past = key < minIso || key > RANGE_END;
+    const off = key < minIso || key > RANGE_END;
     const names = countByDate.get(key) || [];
     const cls = ["day", selected.has(key) && "selected", key === todayIso && "today"].filter(Boolean).join(" ");
-    const tint = !selected.has(key) && names.length && maxCount()
-      ? `style="background: rgba(var(--heat), ${0.08 + 0.32 * names.length / maxCount()})"` : "";
+    const tint = !selected.has(key) && names.length && maxCount
+      ? `style="background: rgba(var(--heat), ${0.08 + 0.32 * names.length / maxCount})"` : "";
     cells.push(
-      `<button type="button" class="${cls}" data-date="${key}" ${past ? "disabled" : ""} ${tint}
+      `<button type="button" class="${cls}" data-date="${key}" ${off ? "disabled" : ""} ${tint}
         aria-pressed="${selected.has(key)}" title="${names.length ? "ว่าง: " + escapeHtml(names.map(nick).join(", ")) : ""}">
         ${d}${names.length ? `<span class="badge">${names.length}</span>` : ""}
       </button>`
     );
   }
   $("days").innerHTML = cells.join("");
-  // เลื่อนเดือนได้เฉพาะในช่วงที่กำหนด
   $("prev").disabled = y * 12 + m <= minY * 12 + (minM - 1);
   $("next").disabled = y * 12 + m >= maxY * 12 + (maxM - 1);
+  paintPreview();
+  renderStatus();
   renderChips();
 }
 
-function renderChips() {
-  const sorted = [...selected].sort();
-  $("chips").innerHTML = sorted.length
-    ? sorted.map((d) => `<span class="chip">${fmtThai(d)}</span>`).join("")
-    : `<span class="hint" style="margin:0">ยังไม่ได้เลือกวัน</span>`;
+// ไฮไลต์ช่วงที่กำลังลาก (ไม่วาดปฏิทินใหม่ แค่สลับ class)
+function paintPreview() {
+  const end = hoverDate || (anchor && anchor.date);
+  let lo = null, hi = null;
+  if (anchor && end) [lo, hi] = anchor.date <= end ? [anchor.date, end] : [end, anchor.date];
+  document.querySelectorAll("#days .day[data-date]").forEach((b) => {
+    const d = b.dataset.date;
+    const inRange = anchor && !b.disabled && d >= lo && d <= hi;
+    b.classList.toggle("preview-add", !!(inRange && anchor.mode === "add"));
+    b.classList.toggle("preview-remove", !!(inRange && anchor.mode === "remove"));
+    b.classList.toggle("anchor", !!(anchor && d === anchor.date));
+  });
 }
 
-let _max = 0;
-function maxCount() { return _max; }
+function renderStatus() {
+  const el = $("status");
+  if (!anchor) {
+    el.className = "status";
+    el.innerHTML = `<span>👆 คลิกวันแรก → เลื่อนเมาส์ → คลิกวันสุดท้าย เพื่อเลือกเป็นช่วง · คลิกวันสีเขียวเพื่อเริ่ม <b>ยกเลิก</b> ช่วงนั้น</span>`;
+    return;
+  }
+  let count = 0;
+  if (hoverDate) eachDay(anchor.date, hoverDate, () => count++);
+  const range = hoverDate && hoverDate !== anchor.date
+    ? `${fmtThai(anchor.date < hoverDate ? anchor.date : hoverDate, false)} – ${fmtThai(anchor.date < hoverDate ? hoverDate : anchor.date, false)} (${count} วัน)`
+    : fmtThai(anchor.date, false);
+  el.className = "status " + anchor.mode;
+  el.innerHTML = anchor.mode === "add"
+    ? `<span>✅ กำลังเลือกว่าง: <b>${range}</b> — คลิกวันสุดท้าย (คลิกวันเดิมซ้ำ = เลือกวันเดียว)</span><button type="button" class="linkbtn" id="cancelRange">ยกเลิก</button>`
+    : `<span>❌ กำลังเปลี่ยนเป็นไม่ว่าง: <b>${range}</b> — คลิกวันสุดท้าย</span><button type="button" class="linkbtn" id="cancelRange">ยกเลิก</button>`;
+  $("cancelRange").onclick = cancelRange;
+}
+
+function cancelRange() { anchor = null; hoverDate = null; paintPreview(); renderStatus(); }
 
 $("days").addEventListener("click", (e) => {
   const btn = e.target.closest(".day[data-date]");
   if (!btn || btn.disabled) return;
-  const key = btn.dataset.date;
-  selected.has(key) ? selected.delete(key) : selected.add(key);
+  const d = btn.dataset.date;
+  if (!anchor) {
+    // คลิกแรก: ถ้าวันนั้นเลือกไว้แล้ว = โหมดยกเลิก, ถ้ายัง = โหมดเลือก
+    anchor = { date: d, mode: selected.has(d) ? "remove" : "add" };
+    hoverDate = d;
+    paintPreview(); renderStatus();
+    return;
+  }
+  // คลิกที่สอง: ใช้ทั้งช่วง
+  eachDay(anchor.date, d, (x) => anchor.mode === "add" ? selected.add(x) : selected.delete(x));
+  anchor = null; hoverDate = null;
+  setMsg("");
   renderCalendar();
 });
+$("days").addEventListener("mouseover", (e) => {
+  const btn = e.target.closest(".day[data-date]");
+  if (!btn || btn.disabled || !anchor) return;
+  if (hoverDate === btn.dataset.date) return;
+  hoverDate = btn.dataset.date;
+  paintPreview(); renderStatus();
+});
+document.addEventListener("keydown", (e) => { if (e.key === "Escape" && anchor) cancelRange(); });
+
 $("prev").onclick = () => { view.m--; if (view.m < 0) { view.m = 11; view.y--; } renderCalendar(); };
 $("next").onclick = () => { view.m++; if (view.m > 11) { view.m = 0; view.y++; } renderCalendar(); };
-$("clear").onclick = () => { selected.clear(); renderCalendar(); };
+$("clear").onclick = () => { selected.clear(); anchor = null; hoverDate = null; renderCalendar(); };
 
-// เลือกชื่อแล้ว ถ้าเคยส่งไว้ ให้โหลดวันที่เดิมมาให้แก้
-$("name").addEventListener("change", () => {
-  const prev = responses.find((r) => r.name === $("name").value);
-  selected.clear();
-  if (prev) {
-    prev.dates.forEach((d) => { if (d >= minIso) selected.add(d); });
-    setMsg("โหลดวันที่ที่คุณเคยส่งไว้แล้ว แก้ไขแล้วกดส่งได้เลย", "ok");
-  } else {
-    setMsg("");
+/* =================== 3) สรุปวันที่เลือกเป็นช่วงๆ (กด ✕ เพื่อเอาออก) =================== */
+function selectedRanges() {
+  const sorted = [...selected].sort();
+  const out = [];
+  for (const d of sorted) {
+    const last = out[out.length - 1];
+    if (last && addDays(last[1], 1) === d) last[1] = d;
+    else out.push([d, d]);
   }
+  return out;
+}
+function renderChips() {
+  const ranges = selectedRanges();
+  if (!ranges.length) {
+    $("chips").innerHTML = `<span class="hint" style="margin:0">ยังไม่ได้เลือกวัน</span>`;
+    return;
+  }
+  const total = selected.size;
+  $("chips").innerHTML = `<span class="hint" style="margin:0 4px 0 0;align-self:center">ว่าง ${total} วัน:</span>` +
+    ranges.map(([a, b]) => {
+      const label = a === b ? fmtThai(a) : `${fmtThai(a, false)} – ${fmtThai(b, false)}`;
+      return `<span class="chip">${label}<button type="button" data-a="${a}" data-b="${b}" aria-label="เอาช่วง ${label} ออก" title="เปลี่ยนเป็นไม่ว่าง">✕</button></span>`;
+    }).join("");
+}
+$("chips").addEventListener("click", (e) => {
+  const b = e.target.closest("button[data-a]");
+  if (!b) return;
+  eachDay(b.dataset.a, b.dataset.b, (d) => selected.delete(d));
   renderCalendar();
 });
 
-function fillNames(names) {
-  const cur = $("name").value;
-  $("name").innerHTML = `<option value="">— เลือกชื่อ —</option>` +
-    names.map((n) => `<option value="${escapeHtml(n)}">${escapeHtml(n)}</option>`).join("");
-  if (names.includes(cur)) $("name").value = cur;
-}
-
-// ---------- ส่งข้อมูล / โหลดข้อมูล ----------
+/* =================== 4) ส่งข้อมูล / โหลดข้อมูล =================== */
 async function api(method, payload) {
   if (DEMO) return demoApi(method, payload);
   const opts = method === "POST"
@@ -307,16 +548,19 @@ function demoApi(method, payload) {
 
 $("form").addEventListener("submit", async (e) => {
   e.preventDefault();
-  const name = $("name").value;
-  if (!name) return setMsg("กรุณาเลือกชื่อ", "err");
-  if (!selected.size) return setMsg("กรุณาเลือกวันที่ว่างอย่างน้อย 1 วัน", "err");
-  const payload = { name, dates: [...selected].sort() };
+  if (!linkedName) {
+    setMsg("กรุณาพิมพ์แล้วกดเลือกชื่อของคุณจากรายการก่อน", "err");
+    $("name").focus();
+    return;
+  }
+  if (anchor) cancelRange();
+  const payload = { name: linkedName, dates: [...selected].sort() };
+  if (!payload.dates.length && !confirm("ยังไม่ได้เลือกวันว่างเลย จะบันทึกว่า \"ไม่ว่างทุกวัน\" ใช่ไหม?")) return;
   $("submit").disabled = true;
   setMsg("กำลังส่ง…");
   try {
     await api("POST", payload);
-    setMsg(`บันทึกแล้ว ✓ (${payload.dates.length} วัน) ขอบคุณ ${nick(name)}!`, "ok");
-    selected.clear();
+    setMsg(`บันทึกแล้ว ✓ ว่าง ${payload.dates.length} วัน ขอบคุณ ${nick(linkedName)}!`, "ok");
     await loadSummary();
   } catch (err) {
     setMsg("ส่งไม่สำเร็จ ลองใหม่อีกครั้ง (" + err.message + ")", "err");
@@ -331,7 +575,7 @@ async function loadSummary() {
     const data = await api("GET");
     responses = data.responses || [];
     allNames = data.names || [];
-    fillNames(allNames);
+    if (!$("suggest").hidden) renderSuggest();
   } catch (err) {
     $("summaryMeta").textContent = "โหลดข้อมูลไม่สำเร็จ: " + err.message;
     return;
@@ -344,7 +588,7 @@ async function loadSummary() {
       countByDate.get(d).push(r.name);
     }
   }
-  _max = Math.max(0, ...[...countByDate.values()].map((v) => v.length));
+  maxCount = Math.max(0, ...[...countByDate.values()].map((v) => v.length));
   renderSummary();
   renderCalendar();
 }
@@ -368,7 +612,6 @@ function renderSummary() {
 }
 
 function setMsg(text, kind = "") { $("msg").textContent = text; $("msg").className = "msg " + kind; }
-function escapeHtml(s) { return String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c])); }
 
 $("refresh").onclick = loadSummary;
 $("demoNotice").hidden = !DEMO;
